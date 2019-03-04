@@ -9,6 +9,9 @@ cleaning painless.
 Here is a screenshot of this plugin at work:
 ![Example Screenshot](http://i.imgur.com/St7yHth.png)
 
+This fork of the original plugin also includes highlighting of Tab
+characters.
+
 ## Installation
 There are a few ways you can go about installing this plugin:
 

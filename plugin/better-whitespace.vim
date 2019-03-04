@@ -65,6 +65,13 @@ call s:InitVariable('strip_max_file_size', 1000)
 " Disable verbosity by default
 call s:InitVariable('better_whitespace_verbosity', 0)
 
+" Set the highlight color for tab characters
+call s:InitVariable('better_whitespace_tab_ctermcolor', '187')
+call s:InitVariable('better_whitespace_tab_guicolor', 'darkgreen')
+
+" Set this to have tab characters highlighted
+call s:InitVariable('highlight_tabs', 1)
+
 
 " Section: Whitespace matching setup
 
@@ -72,6 +79,9 @@ call s:InitVariable('better_whitespace_verbosity', 0)
 " whitespace characters except tab (\u0009). Vim's '\s' class only includes ASCII spaces and tabs.
 let s:whitespace_chars='\u0020\u00a0\u1680\u180e\u2000-\u200b\u202f\u205f\u3000\ufeff'
 let s:eol_whitespace_pattern = '[\u0009' . s:whitespace_chars . ']\+$'
+if g:highlight_tabs == 1
+    let s:tab_chars = '\u0009'
+endif
 
 if g:better_whitespace_skip_empty_lines == 1
     let s:eol_whitespace_pattern = '[^\u0009' . s:whitespace_chars . ']\@1<=' . s:eol_whitespace_pattern
@@ -85,11 +95,15 @@ endif
 " Only init once
 let s:better_whitespace_initialized = 0
 
-" Ensure the 'ExtraWhitespace' highlight group has been defined
+" Ensure the 'ExtraWhitespace' and 'TabCharacter' highlight group has been defined
 function! s:WhitespaceInit()
     " Check if the user has already defined highlighting for this group
     if hlexists('ExtraWhitespace') == 0 || empty(synIDattr(synIDtrans(hlID('ExtraWhitespace')), 'bg'))
         execute 'highlight ExtraWhitespace ctermbg = '.g:better_whitespace_ctermcolor. ' guibg = '.g:better_whitespace_guicolor
+    endif
+    " Check if the user has already defined highlighting for this group
+    if hlexists('TabCharacter') == 0 || empty(synIDattr(synIDtrans(hlID('TabCharacter')), 'bg'))
+        execute 'highlight TabCharacter ctermbg = '.g:better_whitespace_tab_ctermcolor. ' guibg = '.g:better_whitespace_tab_guicolor
     endif
     let s:better_whitespace_initialized = 1
 endfunction
@@ -137,15 +151,25 @@ if g:current_line_whitespace_disabled_soft == 1
         endif
     endfunction
 
+    " Match TabCharacter on all lines
+    function! s:HighlightTabCharacter()
+        call <SID>ClearHighlighting()
+        if <SID>ShouldHighlight()
+            exe 'syn match TabCharacter excludenl "' . s:tab_chars . '"'
+        endif
+    endfunction
+
     " Remove Whitespace matching
     function! s:ClearHighlighting()
         syn clear ExtraWhitespace
+        syn clear TabCharacter
     endfunction
 else
     " Match Whitespace on all lines
     function! s:HighlightEOLWhitespace()
         if <SID>ShouldHighlight()
             exe 'match ExtraWhitespace "' . s:eol_whitespace_pattern . '"'
+            exe 'call matchadd("ExtraWhitespace", "' . s:eol_whitespace_pattern . '"' . ')'
         else
             call <SID>ClearHighlighting()
         endif
@@ -154,8 +178,17 @@ else
     " Match Whitespace on all lines except the current one
     function! s:HighlightEOLWhitespaceExceptCurrentLine()
         if <SID>ShouldHighlight()
-            exe 'match ExtraWhitespace "\%<' . line('.') .  'l' . s:eol_whitespace_pattern .
-                                   \ '\|\%>' . line('.') .  'l' . s:eol_whitespace_pattern . '"'
+            exe 'call matchadd("ExtraWhitespace", "\%<' . line('.') .  'l' . s:eol_whitespace_pattern .
+                                   \ '\|\%>' . line('.') .  'l' . s:eol_whitespace_pattern . '"' .')'
+        else
+            call <SID>ClearHighlighting()
+        endif
+    endfunction
+
+    " Match Whitespace on all lines
+    function! s:HighlightTabCharacter()
+        if <SID>ShouldHighlight()
+            exe 'call matchadd("TabCharacter", "' . s:tab_chars . '"'.')'
         else
             call <SID>ClearHighlighting()
         endif
@@ -164,6 +197,7 @@ else
     " Remove Whitespace matching
     function! s:ClearHighlighting()
         match ExtraWhitespace ''
+        match TabCharacter ''
     endfunction
 endif
 
@@ -329,6 +363,13 @@ function! <SID>SetupAutoCommands()
             call <SID>HighlightEOLWhitespace()
             autocmd CursorMovedI,InsertEnter * call <SID>HighlightEOLWhitespaceExceptCurrentLine()
             autocmd InsertLeave,BufReadPost * call <SID>HighlightEOLWhitespace()
+
+            " Highlight tab characters
+            if g:highlight_tabs == 1
+                call <SID>HighlightTabCharacter()
+                autocmd CursorMovedI,InsertEnter * call <SID>HighlightTabCharacter()
+                autocmd InsertLeave,BufReadPost * call <SID>HighlightTabCharacter()
+            endif
 
             if g:current_line_whitespace_disabled_soft == 0
                 " Using syntax: clear whitespace highlighting when leaving buffer
